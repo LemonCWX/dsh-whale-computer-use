@@ -1,0 +1,4 @@
+- insert:
+    - id: whale-computer-use
+      name: '@local/dsh-whale-computer-use'
+      config: {}

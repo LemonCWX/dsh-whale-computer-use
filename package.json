@@ -1,0 +1,15 @@
+{
+  "name": "@local/dsh-whale-computer-use",
+  "version": "1.0.1",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "鲸鱼娘桌面操控：整屏视觉、操作预览、可配置敏感操作和全局插话。",
+  "exports": { ".": "./index.js", "./client": "./client.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-connection"] }
+  },
+  "files": ["index.js", "client.js", "settings-entry.js", "bridge.js", "protocol.js", "cordis.patch.yml", "native", "locale", "icon.svg", "README.md", "TEST_REPORT.md", "CHANGELOG.md", "LICENSE", "build.ps1", "install.ps1", "tests", "previews"],
+  "scripts": { "test": "node --test tests/*.test.mjs", "build": "powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1" }
+}
