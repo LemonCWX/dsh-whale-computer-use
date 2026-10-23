@@ -1,12 +1,45 @@
 # 鲸鱼娘桌面操控 · v1.0.1
 
-面向 DeepSeek Harness 的 Windows 单显示器插件。模型看整屏截图，提出一批鼠标键盘动作，预览一秒后执行，再看新截图判断是否完成。
+[![version](https://img.shields.io/badge/version-1.0.1-blue)](CHANGELOG.md)
+[![platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)]()
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![DSH](https://img.shields.io/badge/DSH-0.2.1--rc.2-blueviolet)]()
 
-## 开始使用
+面向 DeepSeek Harness 的 Windows 单显示器插件：**模型看整屏截图**（不依赖控件树、不读无障碍树），提出一批鼠标键盘动作，
+**预览一秒**后执行，再看新截图判断是否完成。敏感操作默认**交回用户手动完成**，而不是由模型代劳。
 
-安装并启用后，在 DSH 的**新对话**中说：
+![普通动作预览](previews/normal-preview.png)
 
-> 使用鲸鱼娘桌面操控，帮我在当前应用里完成……。先截图确认，完成后停止。
+> English summary: a vision-only desktop-control plugin for DeepSeek Harness on Windows.
+> The model sees a full-screen screenshot, proposes up to five mouse/keyboard actions, they are previewed
+> for one second and then executed; sensitive categories (payment, deletion, external messages, credentials…)
+> are handed back to the human by default. `Ctrl+Alt+Esc` stops everything, `Ctrl+Shift+I` opens an interject box.
+> No control tree, no OCR, no extra ports — screenshots from Windows pixels, input via SendInput.
+
+## 快速开始
+
+1. 把本目录放到固定位置（之后不要移动，安装用的是目录链接）。
+2. 完全退出 DSH 客户端，在本目录执行：
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+   ```
+
+3. 重新打开 DSH，在**新对话**里说：
+
+   > 使用鲸鱼娘桌面操控，帮我在当前应用里完成……。先截图确认，完成后停止。
+
+要求：Windows x64、.NET Framework 4.8、DSH 桌面客户端 `0.2.1-rc.2`、**能接收图片的模型**。
+
+## 文档地图
+
+| 文件 | 内容 |
+|---|---|
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更 |
+| [TEST_REPORT.md](TEST_REPORT.md) | 验证记录：哪些测过、哪些没测 |
+| [REVIEW.md](REVIEW.md) | 一次完整实测评审 + 8 条改进建议（按精度/流畅度/安全/工程分组） |
+
+## 模型与快捷键
 
 模型需要支持图片输入。截图交给当前 DSH 配置的模型；插件没有额外的模型接口或 API Key 配置。
 
