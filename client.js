@@ -9,6 +9,8 @@ window.__ModuleLoader__.load({
       en: { nav: 'Whale Computer Use', title: 'Whale Computer Use', description: 'Choose which actions are sensitive and whether to execute them automatically.', open: 'Open settings', opening: 'Opening…', opened: 'The native settings window is open. Refresh the status after saving.', refresh: 'Refresh status', modeOn: 'Sensitive actions: automatic', modeOff: 'Sensitive actions: manual', categoryCount: 'Selected sensitive categories', shortcuts: 'Ctrl+Alt+Esc: stop · Ctrl+Shift+I: interject', manual: 'Change preferences in the local window. No model request is needed.', failed: 'Could not open local settings. Check the helper; restart DSH if you exited the helper.' },
     };
     const css = '.whale-settings{max-width:760px;display:flex;flex-direction:column;gap:14px;color:var(--dsw-alias-label-primary)}.whale-settings h2{margin:0;font-size:18px;font-weight:600}.whale-settings p{margin:0;line-height:1.6;font-size:13px}.whale-settings .secondary{color:var(--dsw-alias-label-tertiary)}.whale-settings .actions{display:flex;gap:10px;flex-wrap:wrap}.whale-settings button{font:inherit;cursor:pointer;border:.5px solid var(--dsw-alias-border-l2);border-radius:8px;padding:8px 14px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-l1)}.whale-settings button:disabled{opacity:.5;cursor:wait}.whale-settings button:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}';
+    dictionaries.zh.batchLimit = '每个任务的批次上限';
+    dictionaries.en.batchLimit = 'Batch limit per task';
     function SettingsSection({ t, request }) {
       const [busy, setBusy] = React.useState(false);
       const [status, setStatus] = React.useState(null);
@@ -30,6 +32,7 @@ window.__ModuleLoader__.load({
         h('h2', null, t('title')),
         h('p', null, t('description')),
         status?.settings && h('p', null, t(status.settings.AutoSensitive ? 'modeOn' : 'modeOff'), ' · ', t('categoryCount'), ': ', status.settings.SensitiveCategories.length),
+        status?.settings && h('p', null, t('batchLimit'), ': ', status.settings.MaxBatches ?? 80),
         h('div', { className: 'actions' },
           h('button', { type: 'button', disabled: busy, 'data-whale-action': 'open-settings', onClick: () => run('open-settings') }, t(busy ? 'opening' : 'open')),
           h('button', { type: 'button', disabled: busy, onClick: () => run('status') }, t('refresh'))),

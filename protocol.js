@@ -15,7 +15,13 @@ export const ACTION_SCHEMA = {
     ms: integer, modifiers: { type: 'array', items: { type: 'string', enum: ['ctrl', 'shift', 'alt'] } },
   },
 };
-export const CAPTURE_SCHEMA = { type: 'object', additionalProperties: false, properties: {} };
+export const CAPTURE_SCHEMA = { type: 'object', additionalProperties: false, properties: {
+  captureId: { type:'string', description:'Newest observation ID. Required with zoom; the region uses coordinates of that returned image.' },
+  zoom: { type:'object', additionalProperties:false, required:['x','y','width','height'], properties: {
+    x:integer, y:integer, width:integer, height:integer,
+    scale:{type:'integer',enum:[1,2],description:'Native region at 1x or enlarged up to 2x (default 2). Output size is bounded.'},
+  } },
+} };
 export const ACT_SCHEMA = {
   type: 'object', additionalProperties: false, required: ['captureId', 'title', 'actions'],
   properties: {
@@ -38,10 +44,33 @@ function int(value, lo, hi, name) {
   if (!Number.isSafeInteger(value) || value < lo || value > hi) throw new Error(`${name} must be an integer in ${lo}..${hi}`);
 }
 
+export function isCurrentShot(args, shot, now = Date.now()) {
+  return !!shot && args?.captureId === shot.captureId && now >= shot.time && now - shot.time <= 120000;
+}
+
+export function validateCapture(args = {}, shot, now = Date.now()) {
+  if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).some(k => !['captureId','zoom'].includes(k))) throw new Error('Unknown capture field.');
+  if (args.zoom === undefined) {
+    if (args.captureId !== undefined) throw new Error('captureId is only used with zoom.');
+    return {};
+  }
+  const z = args.zoom;
+  if (!z || typeof z !== 'object' || Array.isArray(z) || Object.keys(z).some(k=>!['x','y','width','height','scale'].includes(k))) throw new Error('Invalid zoom region.');
+  if(typeof args.captureId !== 'string' || !args.captureId) throw new Error('zoom requires the observed captureId.');
+  int(z.x,0,3839,'zoom.x'); int(z.y,0,8191,'zoom.y');
+  int(z.width,1,3840,'zoom.width'); int(z.height,1,8192,'zoom.height');
+  int(z.scale ?? 2,1,2,'zoom.scale');
+  // Check image bounds only for the matching observation. Stale references are
+  // recovered as a new full-screen image, never reinterpreted on a newer frame.
+  if (isCurrentShot(args,shot,now) && (z.x + z.width > shot.imageWidth || z.y + z.height > shot.imageHeight)) throw new Error('zoom is outside the observed image.');
+  return {...structuredClone(args),imageWidth:shot?.imageWidth,imageHeight:shot?.imageHeight};
+}
+
 /** Model JSON is untrusted; reject the WHOLE batch before any input or preview. */
-export function validateBatch(args, shot, now = Date.now()) {
+export function validateActions(args, shot = {imageWidth:3840,imageHeight:8192}) {
+  if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).some(k=>!['captureId','title','actions'].includes(k))) throw new Error('Unknown batch field.');
   if (!args || typeof args.title !== 'string' || !args.title.trim() || args.title.length > 200) throw new Error('title must contain 1..200 characters');
-  if (!shot || args.captureId !== shot.captureId || now - shot.time > 120000 || now < shot.time) throw new Error('Screenshot is missing, stale, or already used; capture again.');
+  if(typeof args.captureId !== 'string' || !args.captureId) throw new Error('captureId is required.');
   if (!Array.isArray(args.actions) || args.actions.length < 1 || args.actions.length > 5) throw new Error('Use 1..5 actions per batch.');
   const permitted = new Set(Object.keys(ACTION_SCHEMA.properties));
   return args.actions.map(a => {
@@ -63,6 +92,11 @@ export function validateBatch(args, shot, now = Date.now()) {
     if (a.modifiers !== undefined && (!Array.isArray(a.modifiers) || a.modifiers.length > 3 || a.modifiers.some(k => !['ctrl','shift','alt'].includes(k)))) throw new Error('Invalid modifiers.');
     return structuredClone(a);
   });
+}
+
+export function validateBatch(args, shot, now = Date.now()) {
+  if (!isCurrentShot(args,shot,now)) throw new Error('Screenshot is missing, stale, or already used; capture again.');
+  return validateActions(args,shot);
 }
 
 export function renderResult(_args, value) {

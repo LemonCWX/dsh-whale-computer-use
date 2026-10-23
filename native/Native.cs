@@ -8,10 +8,37 @@ using System.Threading;
 using System.Windows.Forms;
 
 namespace WhaleComputer {
+  internal sealed class PhysicalInputTracker {
+    private long revision;
+    internal long Revision { get { return Interlocked.Read(ref revision); } }
+    internal bool Keyboard(int code,int flags) { return Observe(code,(flags&0x12)!=0); }
+    internal bool Mouse(int code,int flags) { return Observe(code,(flags&3)!=0); }
+    private bool Observe(int code,bool injected) {
+      if(code<0||injected)return false;
+      Interlocked.Increment(ref revision);return true;
+    }
+  }
+  internal static class ObservationGuard {
+    internal static string StaleReason(string expectedId,string actualId,DateTime captured,DateTime now,Rectangle screen,Rectangle currentScreen,IntPtr foreground,IntPtr currentForeground,long input,long currentInput) {
+      if(expectedId==null||actualId!=expectedId)return "截图缺失、已使用或不是最新截图。";
+      if(now<captured||(now-captured).TotalSeconds>120)return "截图已过期。";
+      if(screen!=currentScreen)return "显示分辨率已改变。";
+      if(foreground!=currentForeground)return "截图后前台窗口已改变。";
+      if(input!=currentInput)return "截图后发生真实用户输入。";
+      return null;
+    }
+  }
   internal static class CoordinateMap {
     internal static int Map(int pixel,int image,int screen) {
       if(image<1||screen<1||pixel<0||pixel>=image)throw new ArgumentOutOfRangeException("pixel");
       return (int)Math.Round(pixel*((double)screen-1)/Math.Max(1,image-1));
+    }
+    internal static Rectangle Crop(Rectangle source,int iw,int ih,Dictionary<string,object> zoom) {
+      int x=Json.Int(zoom,"x",-1),y=Json.Int(zoom,"y",-1),w=Json.Int(zoom,"width"),h=Json.Int(zoom,"height");
+      if(iw<1||ih<1||x<0||y<0||w<1||h<1||(long)x+w>iw||(long)y+h>ih)throw new ArgumentException("区域超出截图范围。");
+      int left=Map(x,iw,source.Width),top=Map(y,ih,source.Height);
+      int right=Map(x+w-1,iw,source.Width),bottom=Map(y+h-1,ih,source.Height);
+      return new Rectangle(source.Left+left,source.Top+top,right-left+1,bottom-top+1);
     }
   }
   internal static class Win {
@@ -30,9 +57,7 @@ namespace WhaleComputer {
     [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] internal static extern bool GetUserObjectInformation(IntPtr obj, int index, StringBuilder value, int length, out int needed);
     [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] internal static extern uint GetDoubleClickTime();
-    [DllImport("user32.dll")] internal static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
     [DllImport("user32.dll", SetLastError=true)] internal static extern uint SendInput(uint count, INPUT[] inputs, int size);
-    [StructLayout(LayoutKind.Sequential)] internal struct LASTINPUTINFO { internal uint cbSize; internal uint dwTime; }
     [StructLayout(LayoutKind.Sequential)] internal struct INPUT { internal uint type; internal UNION data; }
     [StructLayout(LayoutKind.Explicit)] internal struct UNION {
       [FieldOffset(0)] internal MOUSEINPUT mouse;
@@ -47,7 +72,6 @@ namespace WhaleComputer {
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] internal static extern IntPtr GetModuleHandle(string module);
 
     internal static string Title() { StringBuilder b=new StringBuilder(512); GetWindowText(GetForegroundWindow(),b,b.Capacity); return b.ToString(); }
-    internal static uint InputTick() { LASTINPUTINFO i=new LASTINPUTINFO(); i.cbSize=(uint)Marshal.SizeOf(i); GetLastInputInfo(ref i); return i.dwTime; }
     internal static void EnsureDesktop() {
       IntPtr d=OpenInputDesktop(0,false,1);
       if (d==IntPtr.Zero) throw new InvalidOperationException("无法访问当前桌面。可能已锁屏或显示 UAC，请用户手动处理。");

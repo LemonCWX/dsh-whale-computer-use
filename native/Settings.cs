@@ -15,8 +15,9 @@ namespace WhaleComputer {
     public string[] CustomKeywords { get; set; }
     public int ManualTimeoutSeconds { get; set; }
     public int MaxImageWidth { get; set; }
+    public int MaxBatches { get; set; }
     public bool Grid { get; set; }
-    public Preferences() { AutoSensitive=false;SensitiveCategories=(string[])Policy.Categories.Clone();CustomKeywords=new string[0];ManualTimeoutSeconds=90;MaxImageWidth=1920;Grid=true; }
+    public Preferences() { AutoSensitive=false;SensitiveCategories=(string[])Policy.Categories.Clone();CustomKeywords=new string[0];ManualTimeoutSeconds=90;MaxImageWidth=1920;MaxBatches=80;Grid=true; }
     internal void Validate() {
       if(SensitiveCategories==null||SensitiveCategories.Length>Policy.Categories.Length)throw new ArgumentException("敏感类别无效。");
       foreach(string c in SensitiveCategories)if(Array.IndexOf(Policy.Categories,c)<0)throw new ArgumentException("未知敏感类别："+c);
@@ -24,6 +25,7 @@ namespace WhaleComputer {
       foreach(string w in CustomKeywords)if(String.IsNullOrWhiteSpace(w)||w.Length>80)throw new ArgumentException("每个关键词需要 1–80 个字符。");
       if(ManualTimeoutSeconds<10||ManualTimeoutSeconds>600)throw new ArgumentException("手动等待时间应为 10–600 秒。");
       if(MaxImageWidth<640||MaxImageWidth>3840)throw new ArgumentException("截图最大宽度应为 640–3840。");
+      if(MaxBatches<1||MaxBatches>1000)throw new ArgumentException("任务批次上限应为 1–1000。");
     }
     internal static Preferences Load(string path) {
       if(!File.Exists(path))return new Preferences();
@@ -70,7 +72,7 @@ namespace WhaleComputer {
     private readonly CheckedListBox categories=new CheckedListBox();
     private readonly CheckBox automate=new CheckBox(), grid=new CheckBox();
     private readonly TextBox words=new TextBox();
-    private readonly NumericUpDown timeout=new NumericUpDown(),width=new NumericUpDown();
+    private readonly NumericUpDown timeout=new NumericUpDown(),width=new NumericUpDown(),batches=new NumericUpDown();
     internal SettingsForm(Preferences current, Action<Preferences> save) {
       Text="鲸鱼娘 · 桌面操控设置";ClientSize=new Size(560,675);StartPosition=FormStartPosition.CenterScreen;MinimumSize=new Size(576,714);
       Font=new Font("Microsoft YaHei UI",10);BackColor=Color.FromArgb(245,249,253);AutoScaleMode=AutoScaleMode.None;
@@ -85,13 +87,16 @@ namespace WhaleComputer {
       timeout.Location=new Point(151,518);timeout.Size=new Size(90,30);timeout.Minimum=10;timeout.Maximum=600;timeout.Value=current.ManualTimeoutSeconds;Controls.Add(timeout);
       Controls.Add(new Label{Text="截图最大宽度",Location=new Point(279,521),Size=new Size(127,26)});
       width.Location=new Point(410,518);width.Size=new Size(124,30);width.Minimum=640;width.Maximum=3840;width.Increment=160;width.Value=current.MaxImageWidth;Controls.Add(width);
-      grid.Location=new Point(24,562);grid.Size=new Size(510,26);grid.Text="显示四分区辅助线（操控边框始终显示）";grid.Checked=current.Grid;Controls.Add(grid);
+      grid.Location=new Point(24,562);grid.Size=new Size(290,26);grid.Text="显示四分区辅助线";grid.Checked=current.Grid;Controls.Add(grid);
+      Controls.Add(new Label{Text="任务批次上限",Location=new Point(310,562),Size=new Size(126,26)});
+      batches.Location=new Point(440,559);batches.Size=new Size(94,30);batches.Minimum=1;batches.Maximum=1000;batches.Value=current.MaxBatches;Controls.Add(batches);
+      Controls.Add(new Label{Text="达到上限后停止并返回进度；上限由你设置。",Location=new Point(24,592),Size=new Size(510,22),ForeColor=Color.FromArgb(77,92,112)});
       Button submit=new Button{Text="保存设置",Location=new Point(392,615),Size=new Size(142,38)};
       submit.Click+=delegate {
         try {
           List<string> c=new List<string>();foreach(int i in categories.CheckedIndices)c.Add(Policy.Categories[i]);
           List<string> keywords=new List<string>();foreach(string line in words.Lines)if(!String.IsNullOrWhiteSpace(line))keywords.Add(line.Trim());
-          Preferences p=new Preferences{SensitiveCategories=c.ToArray(),AutoSensitive=automate.Checked,CustomKeywords=keywords.ToArray(),ManualTimeoutSeconds=(int)timeout.Value,MaxImageWidth=(int)width.Value,Grid=grid.Checked};
+          Preferences p=new Preferences{SensitiveCategories=c.ToArray(),AutoSensitive=automate.Checked,CustomKeywords=keywords.ToArray(),ManualTimeoutSeconds=(int)timeout.Value,MaxImageWidth=(int)width.Value,MaxBatches=(int)batches.Value,Grid=grid.Checked};
           p.Validate();save(p);Close();
         } catch(Exception e) { MessageBox.Show(this,e.Message,"无法保存",MessageBoxButtons.OK,MessageBoxIcon.Error); }
       };Controls.Add(submit);

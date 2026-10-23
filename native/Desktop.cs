@@ -51,11 +51,19 @@ namespace WhaleComputer {
   }
 
   internal static class Capture {
-    internal static Dictionary<string,object> ScreenShot(int maxWidth) {
+    internal static Size ImageSize(Size source,int maxWidth,int scale) {
+      if(source.Width<1||source.Height<1||maxWidth<1||scale<0||scale>2)throw new ArgumentException("无效截图尺寸。");
+      double ratio=scale==0?Math.Min(1,(double)maxWidth/source.Width):scale;
+      ratio=Math.Min(ratio,Math.Min(3840.0/source.Width,8192.0/source.Height));
+      ratio=Math.Min(ratio,Math.Sqrt(12000000.0/((double)source.Width*source.Height)));
+      return new Size(Math.Max(1,(int)Math.Floor(source.Width*ratio)),Math.Max(1,(int)Math.Floor(source.Height*ratio)));
+    }
+    internal static Dictionary<string,object> ScreenShot(int maxWidth,Rectangle region,int scale) {
       Win.EnsureDesktop();Rectangle b=Screen.PrimaryScreen.Bounds;
-      using(Bitmap full=new Bitmap(b.Width,b.Height,PixelFormat.Format24bppRgb)) {
-        using(Graphics g=Graphics.FromImage(full))g.CopyFromScreen(b.Location,Point.Empty,b.Size,CopyPixelOperation.SourceCopy);
-        int w=Math.Min(b.Width,maxWidth),h=(int)Math.Round(b.Height*(double)w/b.Width);
+      if(!b.Contains(region)||region.Width<1||region.Height<1)throw new ArgumentException("截图区域不在主显示器内。");
+      using(Bitmap full=new Bitmap(region.Width,region.Height,PixelFormat.Format24bppRgb)) {
+        using(Graphics g=Graphics.FromImage(full))g.CopyFromScreen(region.Location,Point.Empty,region.Size,CopyPixelOperation.SourceCopy);
+        Size size=ImageSize(region.Size,maxWidth,scale);int w=size.Width,h=size.Height;
         using(Bitmap scaled=new Bitmap(w,h,PixelFormat.Format24bppRgb))using(MemoryStream stream=new MemoryStream()) {
           using(Graphics g=Graphics.FromImage(scaled)){g.InterpolationMode=InterpolationMode.HighQualityBicubic;g.DrawImage(full,new Rectangle(0,0,w,h));}
           ImageCodecInfo jpeg=null;foreach(ImageCodecInfo c in ImageCodecInfo.GetImageEncoders())if(c.MimeType=="image/jpeg")jpeg=c;

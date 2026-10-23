@@ -10,6 +10,7 @@ using System.Windows.Forms;
 
 namespace WhaleComputer {
   internal static class Program {
+    internal const string Version="1.1.0";
     internal static readonly object OutputLock=new object();
     private static StreamWriter output;
     internal static void Emit(object value) {
@@ -36,7 +37,7 @@ namespace WhaleComputer {
   }
 
   internal sealed class Shot {
-    internal string Id;internal DateTime Time;internal Rectangle Bounds;internal IntPtr Foreground;internal uint InputTick;
+    internal string Id;internal DateTime Time;internal Rectangle Bounds,ScreenBounds;internal IntPtr Foreground;internal long PhysicalInput;
   }
   internal sealed class Host : Form {
     private readonly string settingsPath,testSurfacePath;
@@ -50,6 +51,7 @@ namespace WhaleComputer {
     private string cancelReason="已取消";
     private readonly ManualResetEventSlim manualDone=new ManualResetEventSlim(false);
     private readonly Injector input;
+    private readonly PhysicalInputTracker physicalInput=new PhysicalInputTracker();
     private Win.Hook keyboardCallback,mouseCallback;private IntPtr keyboardHook,mouseHook;
     private bool stopHotkey,interjectHotkey;
     private DateTime lastRequest=DateTime.UtcNow;
@@ -83,15 +85,15 @@ namespace WhaleComputer {
       System.Windows.Forms.Timer watchdog=new System.Windows.Forms.Timer{Interval=5000};
       watchdog.Tick+=delegate{if(!working&&overlay.Visible&&(DateTime.UtcNow-lastRequest).TotalMinutes>3){overlay.Hide();shot=null;}};watchdog.Start();
       FormClosed+=delegate{watchdog.Stop();watchdog.Dispose();};
-      Program.Emit(new{@event="ready",version="1.0.0",settings=settings,stopHotkey="Ctrl+Alt+Esc",interjectHotkey="Ctrl+Shift+I"});
+      Program.Emit(new{@event="ready",version=Program.Version,settings=settings,stopHotkey="Ctrl+Alt+Esc",interjectHotkey="Ctrl+Shift+I"});
       Thread reader=new Thread(ReadLoop){IsBackground=true,Name="Whale input pipe"};reader.Start();
     }
     private IntPtr Keyboard(int code,IntPtr w,IntPtr l) {
-      if(code>=0&&working&&!manual&&(Marshal.ReadInt32(l,8)&0x10)==0){cancelled=true;cancelReason="用户正在使用键盘，当前批次已中断。";}
+      if(code>=0&&physicalInput.Keyboard(code,Marshal.ReadInt32(l,8))&&working&&!manual){cancelled=true;cancelReason="用户正在使用键盘，当前批次已中断。";}
       return Win.CallNextHookEx(keyboardHook,code,w,l);
     }
     private IntPtr Mouse(int code,IntPtr w,IntPtr l) {
-      if(code>=0&&working&&!manual&&(Marshal.ReadInt32(l,12)&1)==0){cancelled=true;cancelReason="用户正在使用鼠标，当前批次已中断。";}
+      if(code>=0&&physicalInput.Mouse(code,Marshal.ReadInt32(l,12))&&working&&!manual){cancelled=true;cancelReason="用户正在使用鼠标，当前批次已中断。";}
       return Win.CallNextHookEx(mouseHook,code,w,l);
     }
     protected override void WndProc(ref Message m) {
@@ -120,7 +122,7 @@ namespace WhaleComputer {
           case "status":Reply(id,Status());break;
           case "settings":OpenSettings();Reply(id,new{summary="设置窗口已打开，请用户自行勾选。"});break;
           case "notice":Notice(Json.Str(r,"text"));Reply(id,new{summary="已提示用户。"});break;
-          case "capture":Reply(id,TakeCapture());break;
+          case "capture":Reply(id,TakeCapture(r));break;
           case "act":BeginActions(id,r);break;
           case "finish":cancelled=true;cancelReason="任务结束";shot=null;overlay.Hide();Reply(id,new{summary="已结束桌面操控并隐藏覆盖层。",stopped=stopped});break;
           case "stop":Stop("DSH 请求停止",false);Reply(id,new{summary="已停止。用户须从托盘菜单手动恢复。",stopped=true});break;
@@ -130,17 +132,38 @@ namespace WhaleComputer {
         }
       }catch(Exception e){Fail(id,e);}
     }
-    private object Status(){return new{summary=stopped?"已急停；从托盘菜单手动恢复。":working?"正在处理桌面动作。":"桌面助手已就绪。",stopped=stopped,busy=working,manual=manual,settings=settings,settingsPath=settingsPath};}
-    private Dictionary<string,object> TakeCapture() {
+    private object Status(){return new{summary=stopped?"已急停；从托盘菜单手动恢复。":working?"正在处理桌面动作。":"桌面助手已就绪。",version=Program.Version,stopped=stopped,busy=working,manual=manual,settings=settings,settingsPath=settingsPath};}
+    private string StaleReason(Shot frame,string id) {
+      if(frame==null)return "截图缺失或已经使用。";
+      return ObservationGuard.StaleReason(frame.Id,id,frame.Time,DateTime.UtcNow,frame.ScreenBounds,Screen.PrimaryScreen.Bounds,frame.Foreground,Win.GetForegroundWindow(),frame.PhysicalInput,physicalInput.Revision);
+    }
+    private Dictionary<string,object> TakeCapture(Dictionary<string,object> request) {
       if(stopped)throw new InvalidOperationException("已急停。请用户在系统托盘中手动恢复，禁止自动重试。");
       if(working||dialog!=null)throw new InvalidOperationException("正在操作或用户正在输入，请等待并重新截图。");
       Win.EnsureDesktop();EnsureTestSurface();
+      Rectangle screen=Screen.PrimaryScreen.Bounds,region=screen;int scale=0;string stale=null;
+      object rawZoom;
+      if(request.TryGetValue("zoom",out rawZoom)) {
+        Dictionary<string,object> zoom=rawZoom as Dictionary<string,object>;
+        if(zoom==null)throw new ArgumentException("放大区域必须是对象。");
+        scale=Bounded(zoom,"scale",1,2,2);
+        stale=StaleReason(shot,Json.Str(request,"captureId"));
+        if(stale==null)region=CoordinateMap.Crop(shot.Bounds,Bounded(request,"imageWidth",1,3840,0),Bounded(request,"imageHeight",1,8192,0),zoom);
+        else scale=0;
+      }
+      shot=null;
       overlay.Hide();Application.DoEvents();Thread.Sleep(45);
       Dictionary<string,object> r;
       try {
-        r=WhaleComputer.Capture.ScreenShot(settings.MaxImageWidth);
-        shot=new Shot{Id=Guid.NewGuid().ToString("N"),Time=DateTime.UtcNow,Bounds=Screen.PrimaryScreen.Bounds,Foreground=Win.GetForegroundWindow(),InputTick=Win.InputTick()};
+        // Bind the observation to state BEFORE copying pixels. Activity during
+        // capture must invalidate it rather than be accepted as the baseline.
+        IntPtr foreground=Win.GetForegroundWindow();long revision=physicalInput.Revision;DateTime time=DateTime.UtcNow;
+        r=WhaleComputer.Capture.ScreenShot(settings.MaxImageWidth,region,scale);
+        shot=new Shot{Id=Guid.NewGuid().ToString("N"),Time=time,Bounds=region,ScreenBounds=screen,Foreground=foreground,PhysicalInput=revision};
         r["captureId"]=shot.Id;r["foreground"]=Win.Title();r["settings"]=settings;
+        r["captureMode"]=scale==0?"full":"region";
+        r["region"]=new{x=region.Left-screen.Left,y=region.Top-screen.Top,width=region.Width,height=region.Height};
+        if(stale!=null){r["recoveredFromStale"]=true;r["staleReason"]=stale;}
       } finally {
         overlay.Status="正在观察屏幕";overlay.Lines=new string[0];overlay.Markers.Clear();overlay.Manual=false;overlay.Grid=settings.Grid;
         if(!stopped)overlay.RefreshState();
@@ -200,12 +223,11 @@ namespace WhaleComputer {
       if(working||dialog!=null)throw new InvalidOperationException("已有动作或用户输入窗口，请等待。");
       if(stopped)throw new InvalidOperationException("已急停，请用户手动恢复。");
       Shot frame=shot;
-      if(frame==null||Json.Str(r,"captureId")!=frame.Id||(DateTime.UtcNow-frame.Time).TotalSeconds>120)throw new InvalidOperationException("截图无效或过期，请重新截图。");
-      if(frame.Bounds!=Screen.PrimaryScreen.Bounds)throw new InvalidOperationException("显示分辨率改变，请重新截图。");
-      if(frame.Foreground!=Win.GetForegroundWindow()||frame.InputTick!=Win.InputTick())throw new InvalidOperationException("截图后前台或用户输入发生变化，请重新截图。");
       int iw=Bounded(r,"imageWidth",1,3840,0),ih=Bounded(r,"imageHeight",1,8192,0);
       string title=Json.Str(r,"title");if(title.Length<1||title.Length>200)throw new ArgumentException("动作标题无效。");
       List<Dictionary<string,object>> actions=Validate(r,iw,ih);
+      string stale=StaleReason(frame,Json.Str(r,"captureId"));
+      if(stale!=null){shot=null;Reply(id,new{status="stale_capture",summary=stale+" 本批未执行，请根据补拍的新图重新规划。",completed=0,total=actions.Count,staleReason=stale});return;}
       Preferences preferences=settings;
       List<List<string>> risks=new List<List<string>>();bool sensitive=false;
       foreach(Dictionary<string,object> a in actions){List<string> risk=Policy.Classify(a,title,preferences);risks.Add(risk);sensitive|=risk.Count>0;}
@@ -215,7 +237,7 @@ namespace WhaleComputer {
         if(kind=="type")line+=" · 输入："+(Policy.Redact(a)?"••••（敏感内容已隐藏）":Json.Str(a,"text").Replace("\n"," ↵ ").Replace("\r",""));
         if(kind=="key")line+=" · "+Json.Str(a,"keys");
         if(risks[i].Count>0)line+=" [敏感]";lines.Add(line);
-        if(a.ContainsKey("x"))markers.Add(new Marker{X=Px(a,"x",iw,frame.Bounds.Width),Y=Px(a,"y",ih,frame.Bounds.Height),ToX=Px(a,"toX",iw,frame.Bounds.Width),ToY=Px(a,"toY",ih,frame.Bounds.Height),N=i+1,Red=risks[i].Count>0,Drag=kind=="drag"});
+        if(a.ContainsKey("x"))markers.Add(new Marker{X=frame.Bounds.Left-frame.ScreenBounds.Left+Px(a,"x",iw,frame.Bounds.Width),Y=frame.Bounds.Top-frame.ScreenBounds.Top+Px(a,"y",ih,frame.Bounds.Height),ToX=frame.Bounds.Left-frame.ScreenBounds.Left+Px(a,"toX",iw,frame.Bounds.Width),ToY=frame.Bounds.Top-frame.ScreenBounds.Top+Px(a,"toY",ih,frame.Bounds.Height),N=i+1,Red=risks[i].Count>0,Drag=kind=="drag"});
       }
       shot=null;cancelled=false;working=true;manual=sensitive&&!preferences.AutoSensitive;manualDone.Reset();
       overlay.Grid=preferences.Grid;overlay.Manual=manual;overlay.Markers=markers;overlay.Lines=lines.ToArray();
@@ -236,7 +258,8 @@ namespace WhaleComputer {
           else{status="manual_timeout";summary="用户未在等待时间内响应，本批没有自动执行。只可尝试其他安全步骤，不得绕过或自动执行同一敏感操作。";}
         } else {
           input.Wait(1000);Check();
-          if(frame.Foreground!=Win.GetForegroundWindow()||frame.InputTick!=Win.InputTick())throw new OperationCanceledException("预览期间前台或输入改变，请重新截图。");
+          string stale=StaleReason(frame,frame.Id);
+          if(stale!=null){status="stale_capture";throw new OperationCanceledException(stale+" 预览已取消，本批未执行，请根据补拍的新图重新规划。");}
           foreach(int key in new[]{16,17,18,91,92})if((Win.GetAsyncKeyState(key)&0x8000)!=0)throw new OperationCanceledException("用户仍按着修饰键，已取消本批。");
           foreach(Dictionary<string,object> a in actions){
             Check();int x=frame.Bounds.Left+Px(a,"x",iw,frame.Bounds.Width),y=frame.Bounds.Top+Px(a,"y",ih,frame.Bounds.Height);
@@ -251,7 +274,7 @@ namespace WhaleComputer {
             }completed++;input.Wait(90);
           }
         }
-      }catch(OperationCanceledException e){status=stopped?"stopped":"interrupted";summary=e.Message;}
+      }catch(OperationCanceledException e){status=stopped?"stopped":status=="stale_capture"?"stale_capture":"interrupted";summary=e.Message;}
       catch(Exception e){status="failed";summary="输入结果不确定，停止后续动作。重新观察后再决定。";failure=e.Message;}
       finally{input.Release();}
       string finalStatus=status,finalSummary=summary,finalFailure=failure;int finalCount=completed;

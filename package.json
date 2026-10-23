@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-whale-computer-use",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -10,6 +10,6 @@
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-connection"] }
   },
-  "files": ["index.js", "client.js", "settings-entry.js", "bridge.js", "protocol.js", "cordis.patch.yml", "native", "locale", "icon.svg", "README.md", "TEST_REPORT.md", "CHANGELOG.md", "LICENSE", "build.ps1", "install.ps1", "tests", "previews"],
-  "scripts": { "test": "node --test tests/*.test.mjs", "build": "powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1" }
+  "files": ["index.js", "client.js", "settings-entry.js", "bridge.js", "protocol.js", "cordis.patch.yml", "native", "locale", "icon.svg", "README.md", "TEST_REPORT.md", "REVIEW.md", "ACCEPTANCE.md", "CHANGELOG.md", "LICENSE", "build.ps1", "install.ps1", "test.ps1", "tests", "previews"],
+  "scripts": { "test": "node --test tests/*.test.mjs", "test:native": "powershell -NoProfile -ExecutionPolicy Bypass -File test.ps1 -NativeOnly", "build": "powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1" }
 }

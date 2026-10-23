@@ -1,7 +1,9 @@
-﻿node_modules/
+node_modules/
 .venv-asr/
 *.user
 *.suo
 bin/
 obj/
 out/
+# Kept locally while the pre-1.1 helper is running; current builds use versioned files.
+/native/WhaleComputer.exe

@@ -1,7 +1,8 @@
 param([string]$Profile = 'desktop', [string]$DshCommand = 'dsh.cmd')
 $ErrorActionPreference = 'Stop'
 if ($Profile -eq 'desktop' -and (Get-Process -Name 'DeepSeek Harness' -ErrorAction SilentlyContinue)) { throw '请先完全退出 DeepSeek Harness 客户端，再运行安装。安装不会关闭你的程序。' }
-$entry = Join-Path $PSScriptRoot 'native\WhaleComputer.exe'
+$packageVersion = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'package.json') -Raw | ConvertFrom-Json).version
+$entry = Join-Path $PSScriptRoot "native\WhaleComputer-$packageVersion.exe"
 if (-not (Test-Path -LiteralPath $entry)) { & (Join-Path $PSScriptRoot 'build.ps1') }
 & $DshCommand plugin --profile $Profile add "link:$PSScriptRoot"
 if ($LASTEXITCODE -ne 0) { throw 'DSH 安装命令失败，未执行启用步骤。' }
