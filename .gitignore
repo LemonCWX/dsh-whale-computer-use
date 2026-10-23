@@ -7,3 +7,4 @@ obj/
 out/
 # Kept locally while the pre-1.1 helper is running; current builds use versioned files.
 /native/WhaleComputer.exe
+/native/WhaleComputer-1.1.0.exe

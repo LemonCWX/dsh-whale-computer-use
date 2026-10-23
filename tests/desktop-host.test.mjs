@@ -10,7 +10,7 @@ function harness({maximum=80,act,imageWidth=400,imageHeight=300}={}) {
   native.on('event',message=>{if(message.settings)settings=message.settings;});
   native.request=async(op,payload={},options={})=>{
     options.signal?.throwIfAborted();calls.push({op,payload});
-    if(op==='capture')return {base64:'AA==',captureId:`shot-${++next}`,imageWidth:800,imageHeight:600,screenWidth:2560,screenHeight:1600,settings,captureMode:payload.zoom?'region':'full',region:{x:0,y:0,width:2560,height:1600}};
+    if(op==='capture')return {base64:'AA==',captureId:`shot-${++next}`,imageWidth:800,imageHeight:600,screenWidth:2560,screenHeight:1600,foreground:'TestSurface',settings,captureMode:payload.zoom?'region':'full',region:{x:0,y:0,width:2560,height:1600}};
     if(op==='act')return act?act(payload,options):{status:'executed',summary:'done',completed:payload.actions.length,total:payload.actions.length};
     return {summary:'finished'};
   };
@@ -23,6 +23,26 @@ function harness({maximum=80,act,imageWidth=400,imageHeight=300}={}) {
   return {calls,native,run,events,agent};
 }
 const batch=id=>({captureId:id,title:'harmless wait',actions:[{kind:'wait',ms:1,description:'wait',risks:[]}]});
+
+function assertLossless(value) {
+  assert.deepEqual(value,JSON.parse(JSON.stringify(value)),'Tool output must be lossless JSON, including all nested fields.');
+}
+
+test('ordinary capture has explicit recovery defaults and is lossless JSON',async()=>{
+  const h=harness(),result=await h.run('capture',{});
+  assertLossless(result);
+  assert.equal(result.recoveredFromStale,false);assert.equal(result.staleReason,null);
+});
+
+test('region, post-action, stale recovery and control outputs remain lossless JSON',async()=>{
+  const h=harness(),first=await h.run('capture',{});
+  const zoom=await h.run('capture',{captureId:first.captureId,zoom:{x:0,y:0,width:20,height:20}});
+  assertLossless(zoom);
+  assertLossless(await h.run('act',batch(zoom.captureId)));
+  assertLossless(await h.run('act',batch('used-frame')));
+  assertLossless(await h.run('control',{action:'status'}));
+  assertLossless(await h.run('control',{action:'finish'}));
+});
 
 test('region capture forwards the actual attachment dimensions and actions use returned image coordinates',async()=>{
   const h=harness();const first=await h.run('capture',{});

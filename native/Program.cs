@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace WhaleComputer {
   internal static class Program {
-    internal const string Version="1.1.0";
+    internal const string Version="1.1.1";
     internal static readonly object OutputLock=new object();
     private static StreamWriter output;
     internal static void Emit(object value) {

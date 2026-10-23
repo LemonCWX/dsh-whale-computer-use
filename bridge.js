@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 /** Private stdio transport: no listening port, browser endpoint, or model-controlled executable. */
 export class NativeBridge extends EventEmitter {
-  constructor({ executable = fileURLToPath(new URL('./native/WhaleComputer-1.1.0.exe', import.meta.url)), settingsPath, testSurface } = {}) {
+  constructor({ executable = fileURLToPath(new URL('./native/WhaleComputer-1.1.1.exe', import.meta.url)), settingsPath, testSurface } = {}) {
     super(); this.executable = executable; this.settingsPath = settingsPath; this.testSurface = testSurface;
     this.pending = new Map(); this.nextId = 0; this.child = null; this.starting = null; this.closed = false;
   }

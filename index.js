@@ -87,7 +87,7 @@ export function attachDesktop(ctx, native) {
       summary: `${r.recoveredFromStale ? '区域引用已失效，已补拍整屏；请重新判断。' : ''}${r.captureMode === 'region' ? '区域放大截图' : '整屏截图'} ${image.width}×${image.height}。使用此图片坐标，左上角(0,0)，无需加偏移。下一批使用 captureId=${r.captureId}。`,
       captureId: r.captureId, imageWidth: image.width, imageHeight: image.height,
       screenWidth: r.screenWidth, screenHeight: r.screenHeight, foreground: r.foreground,
-      settings: r.settings, captureMode:r.captureMode ?? 'full', region:r.region, recoveredFromStale:r.recoveredFromStale, staleReason:r.staleReason, budget:budget(), image,
+      settings: r.settings, captureMode:r.captureMode ?? 'full', region:r.region, recoveredFromStale:r.recoveredFromStale ?? false, staleReason:r.staleReason ?? null, budget:budget(), image,
       ...(r.recoveredFromStale ? {status:'stale_capture',completed:0} : {}),
     };
   };

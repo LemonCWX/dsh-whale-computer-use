@@ -1,12 +1,14 @@
-# 鲸鱼娘桌面操控 · v1.1.0
+# 鲸鱼娘桌面操控 · v1.1.1
 
-[![version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.1-blue)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)]()
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DSH](https://img.shields.io/badge/DSH-0.2.1--rc.2-blueviolet)]()
 
 面向 DeepSeek Harness 的 Windows 单显示器插件：**模型看整屏截图**（不依赖控件树、不读无障碍树），提出一批鼠标键盘动作，
 **预览一秒**后执行，再看新截图判断是否完成。敏感操作默认**交回用户手动完成**，而不是由模型代劳。
+
+v1.1.1 修复 v1.1.0 普通截图因 `undefined` 字段触发 `value is not lossless JSON` 的问题。请使用修正版继续验收；旧版的离线检查结果不代表已通过 DSH 实际验收。
 
 ![普通动作预览](previews/normal-preview.png)
 
@@ -38,7 +40,7 @@
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更 |
 | [TEST_REPORT.md](TEST_REPORT.md) | 验证记录：哪些测过、哪些没测 |
 | [REVIEW.md](REVIEW.md) | 一次完整实测评审 + 8 条改进建议（按精度/流畅度/安全/工程分组） |
-| [ACCEPTANCE.md](ACCEPTANCE.md) | v1.1.0 四项改进的用户验收步骤；实机结果待填写 |
+| [ACCEPTANCE.md](ACCEPTANCE.md) | v1.1.1 截图回归和四项改进的用户验收步骤；实机结果待填写 |
 
 ## 模型与快捷键
 
